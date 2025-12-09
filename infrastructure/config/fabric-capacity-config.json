@@ -1,0 +1,23 @@
+{
+  "fabricCapacity": {
+    "name": "<your-fabric-capacity-name>",
+    "location": "<your-location>",
+    "sku": {
+      "name": "F2",
+      "tier": "Fabric"
+    },
+    "administration": {
+      "members": [
+        "<admin1>@example.com",
+        "<admin2>@example.com"
+      ]
+    },
+    "tags": {
+      "ProjectType": "fabric-accelerator",
+      "Environment": "Dev",
+      "ManagedBy": "ARM Template",
+      "Project": "Fabric Accelerator"
+    }
+  }
+}
+

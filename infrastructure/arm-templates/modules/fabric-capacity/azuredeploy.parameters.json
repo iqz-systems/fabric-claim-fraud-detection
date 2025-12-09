@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fabricCapacityName": {
+      "value": "iqzfabric"
+    },
+    "location": {
+      "value": "eastus2"
+    },
+    "sku": {
+      "value": {
+        "name": "F2",
+        "tier": "Fabric"
+      }
+    },
+    "administrationMembers": {
+      "value": []
+    },
+    "tags": {
+      "value": {}
+    }
+  },
+  "_comment": "This is a template file. For actual deployments, use Deploy-FabricCapacity.ps1 script which reads from infrastructure/config/fabric-capacity-config.{env}.json files"
+}
+

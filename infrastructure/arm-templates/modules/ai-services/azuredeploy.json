@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "cognitiveServicesAccounts": {
+      "type": "array",
+      "metadata": {
+        "description": "Array of Cognitive Services account configurations"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for resources"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2025-06-01",
+      "name": "[parameters('cognitiveServicesAccounts')[copyIndex()].name]",
+      "location": "[coalesce(parameters('cognitiveServicesAccounts')[copyIndex()].location, parameters('location'))]",
+      "sku": {
+        "name": "[parameters('cognitiveServicesAccounts')[copyIndex()].sku]"
+      },
+      "kind": "[parameters('cognitiveServicesAccounts')[copyIndex()].kind]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "apiProperties": {},
+        "customSubDomainName": "[parameters('cognitiveServicesAccounts')[copyIndex()].name]",
+        "networkAcls": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'networkAcls'), parameters('cognitiveServicesAccounts')[copyIndex()].networkAcls, json('{\"defaultAction\":\"Allow\",\"virtualNetworkRules\":[],\"ipRules\":[]}'))]",
+        "allowProjectManagement": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'allowProjectManagement'), parameters('cognitiveServicesAccounts')[copyIndex()].allowProjectManagement, true)]",
+        "defaultProject": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'defaultProject'), parameters('cognitiveServicesAccounts')[copyIndex()].defaultProject, '')]",
+        "associatedProjects": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'associatedProjects'), parameters('cognitiveServicesAccounts')[copyIndex()].associatedProjects, createArray())]",
+        "publicNetworkAccess": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'publicNetworkAccess'), parameters('cognitiveServicesAccounts')[copyIndex()].publicNetworkAccess, 'Enabled')]",
+        "disableLocalAuth": "[if(contains(parameters('cognitiveServicesAccounts')[copyIndex()], 'disableLocalAuth'), parameters('cognitiveServicesAccounts')[copyIndex()].disableLocalAuth, false)]"
+      },
+      "tags": "[parameters('tags')]",
+      "copy": {
+        "name": "cognitiveServicesAccounts",
+        "count": "[length(parameters('cognitiveServicesAccounts'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "cognitiveServicesAccountNames": {
+      "type": "array",
+      "value": "[parameters('cognitiveServicesAccounts').name]"
+    },
+    "cognitiveServicesAccountIds": {
+      "type": "array",
+      "value": "[copyIndex('cognitiveServicesAccounts')]"
+    }
+  }
+}
+

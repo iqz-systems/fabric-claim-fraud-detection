@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "prod"
+    },
+    "location": {
+      "value": "<your-location>"
+    },
+    "tags": {
+      "value": {
+        "Environment": "Production",
+        "ManagedBy": "ARM Template",
+        "Project": "Fabric Accelerator",
+        "Owner": "<owner>",
+        "CostCenter": "<cost-center>"
+      }
+    },
+    "cognitiveServicesAccounts": {
+      "value": [
+        {
+          "name": "<your-cognitive-account-prod-1>",
+          "location": "<your-location>",
+          "sku": "<your-sku>",
+          "kind": "AIServices",
+          "allowProjectManagement": true,
+          "defaultProject": "<your-default-project>",
+          "associatedProjects": [
+            "<your-associated-project>"
+          ],
+          "publicNetworkAccess": "Enabled",
+          "disableLocalAuth": false
+        },
+        {
+          "name": "<your-cognitive-account-prod-2>",
+          "location": "<your-location>",
+          "sku": "<your-sku>",
+          "kind": "AIServices",
+          "allowProjectManagement": true,
+          "defaultProject": "<your-default-project>",
+          "associatedProjects": [
+            "<your-associated-project>"
+          ],
+          "publicNetworkAccess": "Enabled",
+          "disableLocalAuth": false
+        }
+      ]
+    }
+  }
+}
+

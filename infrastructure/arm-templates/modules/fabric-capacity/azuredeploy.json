@@ -1,0 +1,94 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fabricCapacityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Fabric capacity resource"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for the Fabric capacity"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "F2",
+      "allowedValues": [
+        "F2",
+        "F4",
+        "F8",
+        "F16",
+        "F32",
+        "F64",
+        "F128",
+        "F256"
+      ],
+      "metadata": {
+        "description": "SKU name for Fabric capacity"
+      }
+    },
+    "skuTier": {
+      "type": "string",
+      "defaultValue": "Fabric",
+      "metadata": {
+        "description": "SKU tier for Fabric capacity"
+      }
+    },
+    "administrationMembers": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Array of email addresses for capacity administrators"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to the resource"
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.Fabric/capacities",
+      "apiVersion": "2023-11-01",
+      "name": "[parameters('fabricCapacityName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "tier": "[parameters('skuTier')]"
+      },
+      "properties": {
+        "administration": {
+          "members": "[parameters('administrationMembers')]"
+        }
+      },
+      "tags": "[parameters('tags')]"
+    }
+  ],
+  "outputs": {
+    "fabricCapacityName": {
+      "type": "string",
+      "value": "[parameters('fabricCapacityName')]"
+    },
+    "fabricCapacityId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName'))]"
+    },
+    "fabricCapacityLocation": {
+      "type": "string",
+      "value": "[parameters('location')]"
+    },
+    "fabricCapacitySku": {
+      "type": "string",
+      "value": "[parameters('skuName')]"
+    }
+  }
+}
+

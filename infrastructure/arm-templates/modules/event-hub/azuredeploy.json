@@ -1,0 +1,129 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "eventHubNamespaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Event Hub namespace"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for resources"
+      }
+    },
+    "sku": {
+      "type": "object",
+      "defaultValue": {
+        "name": "Basic",
+        "tier": "Basic",
+        "capacity": 1
+      },
+      "metadata": {
+        "description": "SKU configuration"
+      }
+    },
+    "eventHubs": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Array of Event Hub configurations"
+      }
+    },
+    "kafkaEnabled": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Kafka support"
+      }
+    },
+    "zoneRedundant": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable zone redundancy"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.EventHub/namespaces",
+      "apiVersion": "2024-05-01-preview",
+      "name": "[parameters('eventHubNamespaceName')]",
+      "location": "[parameters('location')]",
+      "sku": "[parameters('sku')]",
+      "properties": {
+        "geoDataReplication": {
+          "maxReplicationLagDurationInSeconds": 0,
+          "locations": [
+            {
+              "locationName": "[parameters('location')]",
+              "roleType": "Primary"
+            }
+          ]
+        },
+        "minimumTlsVersion": "1.2",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false,
+        "zoneRedundant": "[parameters('zoneRedundant')]",
+        "isAutoInflateEnabled": false,
+        "maximumThroughputUnits": 0,
+        "kafkaEnabled": "[parameters('kafkaEnabled')]"
+      },
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/authorizationRules",
+      "apiVersion": "2024-05-01-preview",
+      "name": "[concat(parameters('eventHubNamespaceName'), '/RootManageSharedAccessKey')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ],
+      "properties": {
+        "rights": [
+          "Listen",
+          "Manage",
+          "Send"
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/eventhubs",
+      "apiVersion": "2024-05-01-preview",
+      "name": "[concat(parameters('eventHubNamespaceName'), '/', parameters('eventHubs')[copyIndex()].name)]",
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ],
+      "properties": {
+        "messageRetentionInDays": "[coalesce(parameters('eventHubs')[copyIndex()].messageRetentionInDays, 1)]",
+        "partitionCount": "[coalesce(parameters('eventHubs')[copyIndex()].partitionCount, 2)]",
+        "status": "Active"
+      },
+      "copy": {
+        "name": "eventHubs",
+        "count": "[length(parameters('eventHubs'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "eventHubNamespaceName": {
+      "type": "string",
+      "value": "[parameters('eventHubNamespaceName')]"
+    },
+    "eventHubNamespaceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+    }
+  }
+}
+
