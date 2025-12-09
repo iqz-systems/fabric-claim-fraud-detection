@@ -1,0 +1,173 @@
+# Azure DevOps Pipeline for Infrastructure Deployment
+# Incremental deployment with change detection, dependency handling, and environment management
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - infrastructure/**
+      - azure-pipelines/**
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Variable group - uncomment after creating in Azure DevOps Library
+  # - group: Infrastructure-Variables
+  - name: subscriptionId
+    value: '<your-subscription-id>'  # Override in variable group if needed
+  - name: environment
+    value: $[coalesce(variables['Build.SourceBranchName'], 'dev')]
+  - name: resourceGroupName
+    value: '<your-resource-group-name-prefix>-$(environment)'
+  - name: location
+    value: '<your-location>'
+  - name: skipModules
+    value: ''
+
+stages:
+  - stage: Validate
+    displayName: 'Validate Templates'
+    jobs:
+      - job: ValidateTemplates
+        displayName: 'Validate ARM Templates'
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - task: AzurePowerShell@5
+            displayName: 'Validate All Templates'
+            inputs:
+              azureSubscription: '<your-azure-service-connection>'
+              ScriptType: 'FilePath'
+              ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Validate-Templates.ps1'
+              azurePowerShellVersion: 'LatestVersion'
+              pwsh: true
+
+  - stage: DetectChanges
+    displayName: 'Detect Changes'
+    dependsOn: []
+    jobs:
+      - job: ChangeDetection
+        displayName: 'Detect Changed Modules'
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - task: PowerShell@2
+            displayName: 'Detect Module Changes'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $changedFiles = git diff HEAD~1 HEAD --name-only
+                $modules = @('monitoring', 'storage', 'event-hub', 'ai-services', 'integration', 'fabric-capacity')
+                $changedModules = @()
+                
+                foreach ($module in $modules) {
+                  $modulePath = "infrastructure/arm-templates/modules/$module"
+                  if ($changedFiles -match $modulePath -or $changedFiles -match "infrastructure/config/") {
+                    $changedModules += $module
+                    Write-Host "##vso[task.setvariable variable=changedModule_$module]true"
+                  }
+                }
+                
+                if ($changedModules.Count -eq 0) {
+                  Write-Host "No module changes detected. Deploying all modules."
+                  foreach ($module in $modules) {
+                    Write-Host "##vso[task.setvariable variable=changedModule_$module]true"
+                  }
+                } else {
+                  Write-Host "Changed modules: $($changedModules -join ', ')"
+                }
+                
+                Write-Host "##vso[task.setvariable variable=changedModules]$($changedModules -join ',')"
+                Write-Host "##vso[task.setvariable variable=changedModulesCount]$($changedModules.Count)"
+
+  - stage: DeployDev
+    displayName: 'Deploy to Development'
+    dependsOn: [Validate, DetectChanges]
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
+    jobs:
+      - deployment: DeployInfrastructure
+        displayName: 'Deploy Infrastructure to Dev'
+        pool:
+          vmImage: 'windows-latest'
+        environment: 'dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Deploy All Modules'
+                  inputs:
+                    azureSubscription: '<your-azure-service-connection>'
+                    ScriptType: 'FilePath'
+                    ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-AllModules.ps1'
+                    ScriptArguments: >
+                      -ResourceGroupName "$(resourceGroupName)"
+                      -Environment "dev"
+                      -Location "$(location)"
+                    azurePowerShellVersion: 'LatestVersion'
+                    pwsh: true
+                
+                - task: PowerShell@2
+                  displayName: 'Generate Deployment Summary'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      Write-Host "Deployment Summary"
+                      Write-Host "Resource Group: $(resourceGroupName)"
+                      Write-Host "Environment: dev"
+                      Write-Host "Location: $(location)"
+                      Write-Host "Deployed Resources:"
+                      az account show
+                      az resource list --resource-group $(resourceGroupName) --output table
+
+  - stage: DeployProd
+    displayName: 'Deploy to Production'
+    dependsOn: [DeployDev]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployInfrastructureProd
+        displayName: 'Deploy Infrastructure to Prod'
+        pool:
+          vmImage: 'windows-latest'
+        environment: 'prod'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Validate Production Config'
+                  inputs:
+                    azureSubscription: '<your-azure-service-connection>'
+                    ScriptType: 'inline'
+                    script: |
+                      $configPath = "$(System.DefaultWorkingDirectory)/infrastructure/config/fabric-capacity-config.prod.json"
+                      $config = Get-Content $configPath | ConvertFrom-Json
+                      Write-Host "Production Config Validated"
+                      Write-Host "Fabric Capacity SKU: $($config.fabricCapacity.sku.name)"
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Deploy All Modules to Production'
+                  inputs:
+                    azureSubscription: 'azdo-serviceconnection-arm-d'
+                    ScriptType: 'FilePath'
+                    ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-AllModules.ps1'
+                    ScriptArguments: >
+                      -ResourceGroupName "<your-prod-resource-group>"
+                      -Environment "prod"
+                      -Location "$(location)"
+                    azurePowerShellVersion: 'LatestVersion'
+                    pwsh: true
+                
+
+

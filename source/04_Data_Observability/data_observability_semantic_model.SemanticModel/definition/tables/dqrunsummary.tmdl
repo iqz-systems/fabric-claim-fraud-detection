@@ -1,0 +1,131 @@
+table dqrunsummary
+	lineageTag: 7662dc90-e6a8-46bf-a685-e11b0fdbcfcf
+	sourceLineageTag: [dataquality].[dqrunsummary]
+
+	column RunID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 778ec5c9-7016-47d5-b5ea-009e6b208130
+		sourceLineageTag: RunID
+		summarizeBy: none
+		sourceColumn: RunID
+
+		annotation SummarizationSetBy = Automatic
+
+	column TriggeredBy
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: c8220e7b-7ff0-47e0-b815-5b55fff7a213
+		sourceLineageTag: TriggeredBy
+		summarizeBy: none
+		sourceColumn: TriggeredBy
+
+		annotation SummarizationSetBy = Automatic
+
+	column StartTime
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: datetime2
+		lineageTag: 9f29e772-2458-4bbe-bbbc-83ce4b44e185
+		sourceLineageTag: StartTime
+		summarizeBy: none
+		sourceColumn: StartTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column EndTime
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: datetime2
+		lineageTag: 863175b7-a66e-4955-981c-cd2220df5a38
+		sourceLineageTag: EndTime
+		summarizeBy: none
+		sourceColumn: EndTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column DurationSeconds
+		dataType: double
+		sourceProviderType: float
+		lineageTag: ea7ae874-e052-4aad-8efc-fc604df02f7d
+		sourceLineageTag: DurationSeconds
+		summarizeBy: none
+		sourceColumn: DurationSeconds
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TestCaseCount
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: e58c73c1-af60-4847-b627-986680ada681
+		sourceLineageTag: TestCaseCount
+		summarizeBy: none
+		sourceColumn: TestCaseCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column PassCount
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: ecd7be2c-462a-400b-a276-7a634079e06d
+		sourceLineageTag: PassCount
+		summarizeBy: none
+		sourceColumn: PassCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column FailCount
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: bc3f96d0-277b-4928-89df-77273cd774ee
+		sourceLineageTag: FailCount
+		summarizeBy: none
+		sourceColumn: FailCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column OverallStatus
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 85cb8c68-52d3-45d9-80f2-2ea442772e6d
+		sourceLineageTag: OverallStatus
+		summarizeBy: none
+		sourceColumn: OverallStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column LoggedAt
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: datetime2
+		lineageTag: 314d3c70-4b7a-49eb-8c57-eee85a9f481c
+		sourceLineageTag: LoggedAt
+		summarizeBy: none
+		sourceColumn: LoggedAt
+
+		annotation SummarizationSetBy = Automatic
+
+	column TestCaseID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 210240ef-e3e4-4a7d-bef9-5e78237c1a78
+		sourceLineageTag: TestCaseID
+		summarizeBy: none
+		sourceColumn: TestCaseID
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dqrunsummary = entity
+		mode: directLake
+		source
+			entityName: dqrunsummary
+			schemaName: dataquality
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

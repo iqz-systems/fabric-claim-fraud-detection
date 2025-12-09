@@ -1,0 +1,25 @@
+# Production Environment Variables
+variables:
+  environment: 'prod'
+  resourceGroupName: '<your-prod-resource-group>'
+  location: '<your-location>'
+  subscriptionId: '<your-subscription-id>'
+  
+  # Module-specific settings
+  storageAccountName: '<your-prod-storage-account>'
+  eventHubNamespaceName: '<your-prod-eventhub-namespace>'
+  logAnalyticsWorkspaceName: '<your-prod-loganalytics>'
+  applicationInsightsName: '<your-prod-appinsights>'
+  actionGroupName: '<your-prod-actiongroup>'
+  
+  # Tags
+  tags: |
+    {
+      "Environment": "Production",
+      "ManagedBy": "Azure DevOps",
+      "Project": "Fabric Accelerator",
+      "Owner": "<owner>",
+      "CostCenter": "<cost-center>"
+    }
+
+

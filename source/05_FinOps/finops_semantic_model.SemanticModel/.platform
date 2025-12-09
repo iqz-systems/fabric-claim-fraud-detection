@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "finops_semantic_model"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "4dda3960-40f2-8435-43ae-b3962e59aa2d"
+  }
+}

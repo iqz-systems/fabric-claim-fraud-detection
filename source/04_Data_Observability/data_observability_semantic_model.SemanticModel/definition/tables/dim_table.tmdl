@@ -1,0 +1,43 @@
+table dim_table
+	lineageTag: 338b8d61-e48d-4736-8591-98022b8780fc
+	sourceLineageTag: [dataquality].[dim_table]
+
+	column TableID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 0129d749-63b8-4504-82ab-583fef4100f1
+		sourceLineageTag: TableID
+		summarizeBy: none
+		sourceColumn: TableID
+
+		annotation SummarizationSetBy = Automatic
+
+	column TableName
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: bd2a7042-3061-4f48-8cdf-47319a848472
+		sourceLineageTag: TableName
+		summarizeBy: none
+		sourceColumn: TableName
+
+		annotation SummarizationSetBy = Automatic
+
+	column Layer
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 9d1e1525-a384-4343-9aa6-8041d9be68c9
+		sourceLineageTag: Layer
+		summarizeBy: none
+		sourceColumn: Layer
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_table = entity
+		mode: directLake
+		source
+			entityName: dim_table
+			schemaName: dataquality
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

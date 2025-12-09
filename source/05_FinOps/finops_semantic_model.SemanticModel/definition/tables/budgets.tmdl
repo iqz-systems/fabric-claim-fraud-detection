@@ -1,0 +1,192 @@
+table budgets
+	lineageTag: e02687f8-836f-46a6-9508-5792ed44b205
+	sourceLineageTag: [dbo].[budgets]
+
+	measure 'Budget Utilization %' = SUM(budgets[currentSpendAmount])/SUM(budgets[budgetAmount])
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 29b56bb4-1942-4297-89b3-9d063d66b9ef
+
+		changedProperty = Name
+
+		changedProperty = FormatString
+
+	measure 'Spend vs Forecast Delta' = SUM(budgets[currentSpendAmount]) - SUM(budgets[forecastAmount])
+		lineageTag: 1a81dc98-75d3-4f85-912c-8417aab82484
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column name
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 46e22144-acd1-4bad-8e1d-b353910e81bc
+		sourceLineageTag: name
+		summarizeBy: none
+		sourceColumn: name
+
+		annotation SummarizationSetBy = Automatic
+
+	column type
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 31ad58c3-9d25-4911-8ea3-654d48c3c3de
+		sourceLineageTag: type
+		summarizeBy: none
+		sourceColumn: type
+
+		annotation SummarizationSetBy = Automatic
+
+	column eTag
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: fddab28f-2c48-4934-86f2-a1621930dfda
+		sourceLineageTag: eTag
+		summarizeBy: none
+		sourceColumn: eTag
+
+		annotation SummarizationSetBy = Automatic
+
+	column startDate
+		dataType: dateTime
+		formatString: Short Date
+		sourceProviderType: datetime2
+		lineageTag: f97b1e08-b232-4e66-b0d2-bdd2914bee53
+		sourceLineageTag: startDate
+		summarizeBy: none
+		sourceColumn: startDate
+
+		changedProperty = DataType
+
+		changedProperty = FormatString
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	column endDate
+		dataType: dateTime
+		formatString: Short Date
+		sourceProviderType: datetime2
+		lineageTag: c0b43e41-fa5c-4696-a5ac-e68fe396dfb6
+		sourceLineageTag: endDate
+		summarizeBy: none
+		sourceColumn: endDate
+
+		changedProperty = DataType
+
+		changedProperty = FormatString
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	column timeGrain
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 19bf8c96-a55d-4672-a6b0-5c6f66fe0eca
+		sourceLineageTag: timeGrain
+		summarizeBy: none
+		sourceColumn: timeGrain
+
+		annotation SummarizationSetBy = Automatic
+
+	column budgetAmount
+		dataType: double
+		sourceProviderType: float
+		lineageTag: c36e2429-2048-434d-aeff-ba047614b66b
+		sourceLineageTag: budgetAmount
+		summarizeBy: sum
+		sourceColumn: budgetAmount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column currentSpendAmount
+		dataType: double
+		sourceProviderType: float
+		lineageTag: 9bf753b6-efba-4b78-86b4-59461dad1f01
+		sourceLineageTag: currentSpendAmount
+		summarizeBy: sum
+		sourceColumn: currentSpendAmount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column currentSpendUnit
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 1b8edcf2-a039-4224-be34-be00c8d83879
+		sourceLineageTag: currentSpendUnit
+		summarizeBy: none
+		sourceColumn: currentSpendUnit
+
+		annotation SummarizationSetBy = Automatic
+
+	column category
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 02e500c6-0a15-4787-9f24-d7fad0427ce1
+		sourceLineageTag: category
+		summarizeBy: none
+		sourceColumn: category
+
+		annotation SummarizationSetBy = Automatic
+
+	column notifications
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 317fc863-5b85-4b18-871b-4053eef4199f
+		sourceLineageTag: notifications
+		summarizeBy: none
+		sourceColumn: notifications
+
+		annotation SummarizationSetBy = Automatic
+
+	column forecastAmount
+		dataType: int64
+		sourceProviderType: int
+		lineageTag: 6daf48da-d82b-4324-b030-0db2394d2462
+		sourceLineageTag: forecastAmount
+		summarizeBy: sum
+		sourceColumn: forecastAmount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column forecastUnit
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: fa6ed46b-be65-49ae-b31b-8eaa4f1b0771
+		sourceLineageTag: forecastUnit
+		summarizeBy: none
+		sourceColumn: forecastUnit
+
+		annotation SummarizationSetBy = Automatic
+
+	column filter
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 795be648-c3e6-4dc8-a21f-4402f5b52e4a
+		sourceLineageTag: filter
+		summarizeBy: none
+		sourceColumn: filter
+
+		annotation SummarizationSetBy = Automatic
+
+	partition budgets = entity
+		mode: directLake
+		source
+			entityName: budgets
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

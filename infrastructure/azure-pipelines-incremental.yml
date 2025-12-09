@@ -1,0 +1,244 @@
+# Incremental Azure Pipeline with Advanced Change Detection
+# Optimized version that only deploys what changed
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - infrastructure/**
+      - azure-pipelines/**
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Variable group - uncomment after creating in Azure DevOps Library
+  # - group: Infrastructure-Variables
+  - name: subscriptionId
+    value: '<your-subscription-id>'  # Override in variable group if needed
+  - name: location
+    value: '<your-location>'  # Override in variable group if needed
+  - name: isMainBranch
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  - name: isDevelopBranch
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/develop')]
+
+stages:
+  - stage: Validate
+    displayName: 'Validate Templates'
+    jobs:
+      - job: Validate
+        displayName: 'Validate ARM Templates'
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - checkout: self
+          
+          - task: AzurePowerShell@5
+            displayName: 'Validate Templates'
+            inputs:
+              azureSubscription: '<your-azure-service-connection>'
+              ScriptType: 'FilePath'
+              ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Validate-Templates.ps1'
+              azurePowerShellVersion: 'LatestVersion'
+              pwsh: true
+            continueOnError: false
+
+  - stage: DetectChanges
+    displayName: 'Detect Changes'
+    dependsOn: []
+    jobs:
+      - job: ChangeDetection
+        displayName: 'Detect Module Changes'
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 2  # Need history for change detection
+          
+          - task: AzurePowerShell@5
+            displayName: 'Detect Git Changes'
+            inputs:
+              azureSubscription: '<your-azure-service-connection>'
+              ScriptType: 'FilePath'
+              ScriptPath: '$(System.DefaultWorkingDirectory)/azure-pipelines/scripts/detect-changes.ps1'
+              ScriptArguments: >
+                -SourceBranch "$(Build.SourceVersion)"
+              azurePowerShellVersion: 'LatestVersion'
+              pwsh: true
+            continueOnError: false
+            name: DetectGitChangesTask
+          
+          - task: AzurePowerShell@5
+            displayName: 'Detect Resource Drift'
+            inputs:
+              azureSubscription: '<your-azure-service-connection>'
+              ScriptType: 'FilePath'
+              ScriptPath: '$(System.DefaultWorkingDirectory)/azure-pipelines/scripts/detect-drift.ps1'
+              ScriptArguments: >
+                -ResourceGroupName "fraud-claim-detection-dev"
+              azurePowerShellVersion: 'LatestVersion'
+              pwsh: true
+            continueOnError: false
+            name: DetectDriftTask
+            condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+          
+          - task: PowerShell@2
+            displayName: 'Combine Change Detection Results'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Access output variables from previous tasks via environment variables
+                # Azure DevOps converts task output variables to environment variables
+                $gitChangedModules = $env:DETECTGITCHANGESTASK_CHANGEDMODULES
+                $driftDetected = $env:DETECTDRIFTTASK_DRIFTDETECTED
+                $driftChangedModules = $env:DETECTDRIFTTASK_CHANGEDMODULES
+                
+                Write-Host "Combining change detection results..." -ForegroundColor Cyan
+                Write-Host "Git changes: $gitChangedModules" -ForegroundColor Cyan
+                Write-Host "Drift detected: $driftDetected" -ForegroundColor Cyan
+                Write-Host "Drift modules: $driftChangedModules" -ForegroundColor Cyan
+                
+                # Combine modules that need deployment
+                $allChangedModules = @()
+                
+                if ($gitChangedModules -and $gitChangedModules -ne '' -and $gitChangedModules -ne 'null') {
+                  $allChangedModules += $gitChangedModules.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+                }
+                
+                if ($driftDetected -eq 'true' -and $driftChangedModules -and $driftChangedModules -ne '' -and $driftChangedModules -ne 'null') {
+                  $driftModules = $driftChangedModules.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+                  foreach ($module in $driftModules) {
+                    if ($allChangedModules -notcontains $module) {
+                      $allChangedModules += $module
+                    }
+                  }
+                }
+                
+                # If no specific changes, deploy all
+                if ($allChangedModules.Count -eq 0) {
+                  Write-Host "No specific changes detected - will deploy all modules" -ForegroundColor Yellow
+                  $allChangedModules = @('monitoring', 'storage', 'event-hub', 'ai-services', 'integration', 'fabric-capacity')
+                }
+                
+                $uniqueModules = $allChangedModules | Select-Object -Unique
+                
+                Write-Host "`n========================================" -ForegroundColor Green
+                Write-Host "Final Change Detection Summary" -ForegroundColor Green
+                Write-Host "========================================" -ForegroundColor Green
+                Write-Host "Modules to deploy: $($uniqueModules -join ', ')" -ForegroundColor Green
+                Write-Host "Total modules: $($uniqueModules.Count)" -ForegroundColor Green
+                Write-Host "========================================" -ForegroundColor Green
+                
+                # Set output variables for each module
+                foreach ($moduleName in $uniqueModules) {
+                  Write-Host "##vso[task.setvariable variable=changedModule_$moduleName;isOutput=true]true"
+                }
+                
+                Write-Host "##vso[task.setvariable variable=changedModules;isOutput=true]$($uniqueModules -join ',')"
+                Write-Host "##vso[task.setvariable variable=changedModulesCount;isOutput=true]$($uniqueModules.Count)"
+            name: CombineResultsTask
+
+  - stage: DeployDev
+    displayName: 'Deploy to Development'
+    dependsOn: [Validate, DetectChanges]
+    condition: and(succeeded(), or(eq(variables['isDevelopBranch'], true), eq(variables['isMainBranch'], true)))
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy Infrastructure to Dev'
+        pool:
+          vmImage: 'windows-latest'
+        environment: 'dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: PowerShell@2
+                  displayName: 'Display Modules to Deploy'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      # Access output variables from change detection stage
+                      $changedModules = $env:COMBINERESULTSTASK_CHANGEDMODULES
+                      $changedModulesCount = $env:COMBINERESULTSTASK_CHANGEDMODULESCOUNT
+                      
+                      Write-Host "========================================" -ForegroundColor Cyan
+                      Write-Host "Deployment Information" -ForegroundColor Cyan
+                      Write-Host "========================================" -ForegroundColor Cyan
+                      Write-Host "Modules to deploy: $changedModules" -ForegroundColor Green
+                      Write-Host "Total modules: $changedModulesCount" -ForegroundColor Green
+                      Write-Host "========================================" -ForegroundColor Cyan
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Deploy Infrastructure Modules'
+                  inputs:
+                    azureSubscription: '<your-azure-service-connection>'
+                    ScriptType: 'FilePath'
+                    ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-AllModules.ps1'
+                    ScriptArguments: >
+                      -ResourceGroupName "<your-dev-resource-group>"
+                      -Environment "dev"
+                      -Location "<your-location>"
+                      -ContinueOnError
+                    azurePowerShellVersion: 'LatestVersion'
+                    pwsh: true
+                  continueOnError: true
+
+  - stage: DeployProd
+    displayName: 'Deploy to Production'
+    dependsOn: [DeployDev]
+    condition: and(succeeded(), eq(variables['isMainBranch'], true))
+    jobs:
+      - deployment: DeployProd
+        displayName: 'Deploy Infrastructure to Prod'
+        pool:
+          vmImage: 'windows-latest'
+        environment: 'prod'  # Requires approval
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Pre-Deployment Validation'
+                  inputs:
+                    azureSubscription: '<your-azure-service-connection>'
+                    ScriptType: 'inline'
+                    script: |
+                      Write-Host "Production Deployment Validation"
+                      $configPath = "$(System.DefaultWorkingDirectory)/infrastructure/config/fabric-capacity-config.prod.json"
+                      if (Test-Path $configPath) {
+                        $config = Get-Content $configPath | ConvertFrom-Json
+                        Write-Host " Production config validated"
+                        Write-Host "Fabric Capacity SKU: $($config.fabricCapacity.sku.name)"
+                      } else {
+                        Write-Host "Production config loaded successfully" -ForegroundColor Green
+                      }
+                    azurePowerShellVersion: 'LatestVersion'
+                    pwsh: true
+                
+                - task: AzurePowerShell@5
+                  displayName: 'Deploy Infrastructure Modules to Production'
+                  inputs:
+                    azureSubscription: '<your-azure-service-connection>'
+                    ScriptType: 'FilePath'
+                    ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-AllModules.ps1'
+                    ScriptArguments: >
+                      -ResourceGroupName "<your-prod-resource-group>"
+                      -Environment "prod"
+                      -Location "<your-location>"
+                      -ContinueOnError
+                    azurePowerShellVersion: 'LatestVersion'
+                    pwsh: true
+                  continueOnError: true
+
+

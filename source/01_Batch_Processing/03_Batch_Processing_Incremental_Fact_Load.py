@@ -1,0 +1,641 @@
+"""
+================================================================================
+NOTEBOOK: 03 - Batch Processing - Incremental Fact Table Load
+================================================================================
+
+PURPOSE:
+    Performs incremental loading of fact tables for the fraud detection
+    data model. Uses watermark-based tracking to process only new records.
+
+WHAT THIS NOTEBOOK DOES:
+    1. Processes fact_claims with cumulative amounts, ratios, and flags
+    2. Creates fact_customer_claims (customer-level aggregations)
+    3. Creates fact_customer_lifecycle (customer tenure metrics)
+    4. Creates claim_settlements (settlement tracking)
+    5. Updates pipeline watermark for incremental processing
+
+PREREQUISITES:
+    - Raw layer tables populated (run notebook 01 first)
+    - Schemas created: raw.frauddetection, curate.frauddetection, publish.frauddetection
+
+HOW TO USE:
+    1. Copy ALL content from this file
+    2. Paste into Fabric notebook
+    3. Attach lakehouses (raw, curate, publish)
+    4. Update APP_INSIGHTS_CONNECTION_STRING if using observability
+    5. Run all cells
+
+EXECUTION ORDER:
+    Run after: 01_Data_Preparation_Load_Initial_Data
+    Can run: Incrementally (processes only new records after first run)
+
+OUTPUT TABLES:
+    - curate.frauddetection.fact_claims
+    - publish.frauddetection.fact_customer_claims
+    - publish.frauddetection.fact_customer_lifecycle
+    - publish.frauddetection.claim_settlements
+    - publish.frauddetection.fact_claims_per_customer_recent
+
+================================================================================
+"""
+
+# ============================================================================
+# COPY EVERYTHING BELOW INTO FABRIC NOTEBOOK
+# ============================================================================
+
+# Fabric notebook source
+
+# METADATA ********************
+
+# META {
+# META   "kernel_info": {
+# META     "name": "synapse_pyspark"
+# META   },
+# META   "dependencies": {
+# META     "lakehouse": {
+# META       "default_lakehouse": "<your-raw-lakehouse-id>",
+# META       "default_lakehouse_name": "raw",
+# META       "default_lakehouse_workspace_id": "<your-workspace-id>",
+# META       "known_lakehouses": [
+# META         {
+# META           "id": "<your-raw-lakehouse-id>"
+# META         },
+# META         {
+# META           "id": "<your-publish-lakehouse-id>"
+# META         },
+# META         {
+# META           "id": "<your-curate-lakehouse-id>"
+# META         }
+# META       ]
+# META     }
+# META   }
+# META }
+
+# MARKDOWN ********************
+
+# # 03 - Batch Processing: Incremental Fact Table Load
+# 
+# This notebook performs incremental loading of fact tables using watermark-based tracking.
+# 
+# **Data Flow:** Raw Layer → Curate Layer → Publish Layer
+
+# CELL ********************
+
+import os
+import logging
+from datetime import datetime, timedelta
+import getpass
+import socket
+import psutil
+from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Configuration
+
+# CELL ********************
+
+# ============================================================================
+# CONFIGURATION - UPDATE IF NEEDED
+# ============================================================================
+
+# Application Insights for observability (optional but recommended)
+APP_INSIGHTS_CONNECTION_STRING = os.getenv(
+    "APP_INSIGHTS_CONNECTION_STRING",
+    "InstrumentationKey=<your-key>;IngestionEndpoint=https://<region>.in.applicationinsights.azure.com/"
+)
+
+# Table configurations
+RAW_SCHEMA = "raw.frauddetection"
+CURATE_SCHEMA = "curate.frauddetection"
+PUBLISH_SCHEMA = "publish.frauddetection"
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Logging Setup
+
+# CELL ********************
+
+def setup_logger():
+    """Set up Application Insights logger with fallback to console."""
+    logger = logging.getLogger("metrics_logger")
+    logger.setLevel(logging.INFO)
+
+    # Avoid duplicate handlers
+    if not logger.hasHandlers():
+        try:
+            from opencensus.ext.azure.log_exporter import AzureLogHandler
+            logger.addHandler(AzureLogHandler(connection_string=APP_INSIGHTS_CONNECTION_STRING))
+        except Exception as e:
+            print(f"Warning: Could not set up Application Insights logging: {e}")
+            # Fall back to console logging
+            handler = logging.StreamHandler()
+            handler.setLevel(logging.INFO)
+            logger.addHandler(handler)
+    
+    return logger
+
+logger = setup_logger()
+
+# Track execution metrics
+start_time = datetime.utcnow()
+logger.info(
+    f"publish_incremental_load Notebook execution started at {start_time}", 
+    extra={"custom_dimensions": {"notebook_name": "publish_incremental_load", "start_time": start_time.isoformat()}}
+)
+
+print(f"Started at: {start_time}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Process Fact Claims
+
+# CELL ********************
+
+logger.info("Starting fact_claims processing")
+
+# Load claims with cumulative amounts and ratios
+# Uncomment the WHERE clause for incremental load after first run
+claims_df = spark.sql(f"""
+    SELECT * FROM {RAW_SCHEMA}.claims 
+    -- Uncomment for incremental load:
+    -- WHERE record_timestamp >= (
+    --     SELECT MAX(last_processed_value) 
+    --     FROM {CURATE_SCHEMA}.pipeline_watermark 
+    --     WHERE pipeline_name='end_to_end_claimsflow'
+    -- )
+""")
+
+claims_count = claims_df.count()
+logger.info(f"Claims records fetched: {claims_count}", extra={"custom_dimensions": {"step": "fact_claims"}})
+print(f"Processing {claims_count:,} claims...")
+
+# Calculate cumulative claim amount per policy
+window_policy = Window.partitionBy("policy_no").orderBy("claim_datetime")
+
+fact_claims_df = claims_df.withColumn(
+    "cumulative_claim_amount_per_policy",
+    F.sum("claim_total").over(window_policy)
+).withColumn(
+    "high_claim_flag", 
+    F.when(F.col("claim_total") > 20000, F.lit(True)).otherwise(F.lit(False))
+).withColumn(
+    "injury_ratio", 
+    F.col("claim_injury") / F.col("claim_total")
+).withColumn(
+    "property_ratio", 
+    F.col("claim_property") / F.col("claim_total")
+).withColumn(
+    "product_ratio", 
+    F.col("claim_vehicle") / F.col("claim_total")
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Create temp view for SQL merge
+fact_claims_df.createOrReplaceTempView("staging_fact_claims")
+logger.info("Temp view staging_fact_claims created")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# MAGIC %%sql
+# MAGIC -- Merge into curate fact_claims table
+# MAGIC MERGE INTO curate.frauddetection.fact_claims AS target
+# MAGIC USING staging_fact_claims AS source
+# MAGIC ON target.claim_no = source.claim_no
+# MAGIC  
+# MAGIC WHEN MATCHED THEN
+# MAGIC     UPDATE SET
+# MAGIC         target.cumulative_claim_amount_per_policy = source.cumulative_claim_amount_per_policy,
+# MAGIC         target.high_claim_flag = source.high_claim_flag,
+# MAGIC         target.injury_ratio = source.injury_ratio,
+# MAGIC         target.property_ratio = source.property_ratio,
+# MAGIC         target.product_ratio = source.product_ratio
+# MAGIC  
+# MAGIC WHEN NOT MATCHED THEN
+# MAGIC     INSERT (
+# MAGIC         claim_no, policy_no, product_id, claim_datetime, incident_date,
+# MAGIC         incident_hour, incident_type, incident_severity, incident_zip_code,
+# MAGIC         incident_latitude, incident_longitude, collision_type,
+# MAGIC         collision_number_of_vehicles_involved, driver_age, driver_insured_relationship,
+# MAGIC         driver_license_issue_date, claim_amount_total, claim_amount_injury,
+# MAGIC         claim_amount_property, claim_amount_product, number_of_witnesses,
+# MAGIC         suspicious_activity, months_as_customer, record_timestamp,
+# MAGIC         cumulative_claim_amount_per_policy, high_claim_flag,
+# MAGIC         injury_ratio, property_ratio, product_ratio
+# MAGIC     )
+# MAGIC     VALUES (
+# MAGIC         source.claim_no, source.policy_no, source.product_id, source.claim_datetime,
+# MAGIC         source.incident_date, source.incident_hour, source.incident_type,
+# MAGIC         source.incident_severity, source.incident_zip_code, source.incident_latitude,
+# MAGIC         source.incident_longitude, source.collision_type, source.collision_number_of_vehicles,
+# MAGIC         source.driver_age, source.driver_insured_relationship, source.driver_license_issue_date,
+# MAGIC         source.claim_total, source.claim_injury, source.claim_property, source.claim_vehicle,
+# MAGIC         source.number_of_witnesses, source.suspicious_activity, source.months_as_customer,
+# MAGIC         source.record_timestamp, source.cumulative_claim_amount_per_policy,
+# MAGIC         source.high_claim_flag, source.injury_ratio, source.property_ratio, source.product_ratio
+# MAGIC     );
+
+# METADATA ********************
+
+# META {
+# META   "language": "sparksql",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Update pipeline watermark
+logger.info("Inserting pipeline watermark for fact_claims")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# MAGIC %%sql
+# MAGIC -- Track watermark for incremental processing
+# MAGIC INSERT INTO curate.frauddetection.pipeline_watermark 
+# MAGIC SELECT 
+# MAGIC     'end_to_end_claimsflow' AS pipeline_name, 
+# MAGIC     'fact_claims' AS table_name,
+# MAGIC     'record_timestamp' AS watermark_column,
+# MAGIC     MAX(record_timestamp) AS last_processed_value,
+# MAGIC     COALESCE(COUNT(*), 0) AS records_processed, 
+# MAGIC     CURRENT_TIMESTAMP AS updated_at 
+# MAGIC FROM staging_fact_claims
+
+# METADATA ********************
+
+# META {
+# META   "language": "sparksql",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+logger.info("Pipeline watermark updated")
+print("✅ Fact claims processed and watermark updated")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Load Other Fact Tables
+
+# CELL ********************
+
+# Load source tables
+claims_df = spark.table(f"{RAW_SCHEMA}.claims")
+policies_df = spark.table(f"{RAW_SCHEMA}.policies")
+product_incidents_df = spark.table(f"{RAW_SCHEMA}.product_incidents")
+customers_df = spark.table(f"{RAW_SCHEMA}.customers")
+
+print("Source tables loaded")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ### Claims per Customer (Last 6 Months)
+
+# CELL ********************
+
+print("Processing claims per customer (last 6 months)...")
+
+# Calculate claims per customer in last 6 months (rolling window)
+X_MONTHS = 6
+cutoff_date = (datetime.today() - timedelta(days=X_MONTHS * 30)).strftime("%Y-%m-%d")
+
+# Join claims with policies to get customer ID
+claims_with_cust_df = claims_df.join(
+    policies_df.select("policy_no", "cust_id"),
+    on="policy_no",
+    how="left"
+)
+
+# Filter claims in last X months
+claims_recent_df = claims_with_cust_df.filter(F.col("claim_datetime") >= F.lit(cutoff_date))
+
+# Aggregate per customer
+claims_per_customer_df = claims_recent_df.groupBy("cust_id").agg(
+    F.count("claim_no").alias(f"claims_last_{X_MONTHS}_months"),
+    F.sum("claim_total").alias(f"claims_amount_last_{X_MONTHS}_months")
+)
+
+# Save to publish layer
+claims_per_customer_df.write.mode("overwrite").saveAsTable(f"{PUBLISH_SCHEMA}.fact_claims_per_customer_recent")
+print(f"✅ fact_claims_per_customer_recent: {claims_per_customer_df.count()} records")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ### Customer Lifecycle Metrics
+
+# CELL ********************
+
+logger.info("Processing fact_customer_lifecycle")
+print("Processing customer lifecycle metrics...")
+
+fact_customer_lifecycle = spark.sql(f"""
+WITH claim_diffs AS (
+    SELECT
+        cust_id,
+        claim_datetime,
+        ROW_NUMBER() OVER (PARTITION BY cust_id ORDER BY claim_datetime) AS rn,
+        LAG(claim_datetime) OVER (PARTITION BY cust_id ORDER BY claim_datetime) AS prev_claim_datetime
+    FROM {RAW_SCHEMA}.claims c 
+    LEFT JOIN {RAW_SCHEMA}.policies p ON c.policy_no = p.policy_no 
+),
+diffs AS (
+    SELECT
+        cust_id,
+        claim_datetime,
+        prev_claim_datetime,
+        DATEDIFF(day, prev_claim_datetime, claim_datetime) / 30 AS months_between_claims
+    FROM claim_diffs
+    WHERE prev_claim_datetime IS NOT NULL
+),
+customer_lifecycle AS (
+    SELECT 
+        cust_id,
+        MIN(pol_issue_date) AS customer_start_date,
+        MAX(pol_expiry_date) AS customer_end_date
+    FROM {RAW_SCHEMA}.policies 
+    GROUP BY cust_id
+)
+SELECT
+    diffs.cust_id,
+    ROUND(AVG(months_between_claims), 2) AS avg_months_between_claims,
+    MIN(customer_start_date) AS customer_start_date,
+    MIN(customer_end_date) AS customer_end_date
+FROM diffs
+LEFT JOIN customer_lifecycle ON diffs.cust_id = customer_lifecycle.cust_id
+GROUP BY diffs.cust_id
+""")
+
+fact_customer_lifecycle.write.mode("overwrite").saveAsTable(f"{PUBLISH_SCHEMA}.fact_customer_lifecycle")
+lifecycle_count = fact_customer_lifecycle.count()
+logger.info(f"fact_customer_lifecycle written: {lifecycle_count} records")
+print(f"✅ fact_customer_lifecycle: {lifecycle_count} records")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ### Customer Claims Summary
+
+# CELL ********************
+
+logger.info("Processing fact_customer_claims")
+print("Processing customer claims summary...")
+
+claims_df = spark.table(f"{RAW_SCHEMA}.claims")
+policies_df = spark.table(f"{RAW_SCHEMA}.policies")
+
+claims_with_cust = claims_df.join(
+    policies_df.select("policy_no", "cust_id"),
+    on="policy_no",
+    how="left"
+)
+
+cutoff_date = (datetime.today() - timedelta(days=6*30)).strftime("%Y-%m-%d")
+
+fact_customer_claims = claims_with_cust.groupBy("cust_id").agg(
+    F.count("claim_no").alias("total_claims"),
+    F.sum(F.when(F.col("claim_datetime") >= F.lit(cutoff_date), 1).otherwise(0)).alias("claims_last_6_months"),
+    F.avg("claim_total").alias("avg_claim_amount"),
+    F.min("claim_datetime").alias("first_claim_date"),
+    F.max("claim_datetime").alias("last_claim_date")
+).withColumn(
+    "months_btw_claims", 
+    (F.months_between(F.col("last_claim_date"), F.col("first_claim_date")) + F.lit(1))
+).withColumn(
+    "claims_per_month", 
+    F.col("total_claims") / F.col("months_btw_claims")
+)
+
+fact_customer_claims.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{PUBLISH_SCHEMA}.fact_customer_claims")
+customer_claims_count = fact_customer_claims.count()
+logger.info(f"fact_customer_claims written: {customer_claims_count} records")
+print(f"✅ fact_customer_claims: {customer_claims_count} records")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ### Claim Settlements
+
+# CELL ********************
+
+logger.info("Generating new claim_settlements")
+print("Processing claim settlements...")
+
+claimsspark_df = spark.sql(f"SELECT * FROM {CURATE_SCHEMA}.fact_claims")
+claimsspark_df.createOrReplaceTempView("fact_claims")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Get the current max settlement ID offset
+try:
+    offset_result = spark.sql(f"""
+        SELECT MAX(SUBSTRING(settlement_id, 5, LENGTH(settlement_id) - 4)) AS st
+        FROM {PUBLISH_SCHEMA}.claim_settlements
+    """).collect()
+    offset = offset_result[0]['st'] if offset_result[0]['st'] else 0
+except Exception:
+    offset = 0
+
+print(f"Current settlement ID offset: {offset}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Create new settlements for claims not yet in settlements table
+spark.sql(f"""
+    SELECT 
+        CONCAT('SETT', LPAD(ROW_NUMBER() OVER (ORDER BY claim_no) + {offset}, 5, '0')) AS settlement_id,
+        claim_no,
+        'IN PROGRESS' AS settlement_status,
+        claim_amount_total AS claimed_amount,
+        NULL AS approved_amount,
+        'NA' AS settlement_reason,
+        NULL AS settlement_date,
+        FALSE AS auto_settled
+    FROM fact_claims
+""").createOrReplaceTempView("new_claims")
+
+logger.info("Temp view new_claims created")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# MAGIC %%sql
+# MAGIC -- Merge new claims into settlements table
+# MAGIC MERGE INTO publish.frauddetection.claim_settlements AS target
+# MAGIC USING new_claims AS source
+# MAGIC ON target.claim_no = source.claim_no
+# MAGIC WHEN NOT MATCHED THEN
+# MAGIC   INSERT (settlement_id, claim_no, settlement_status, claimed_amount, 
+# MAGIC           approved_amount, settlement_reason, settlement_date, auto_settled)
+# MAGIC   VALUES (source.settlement_id, source.claim_no, source.settlement_status, 
+# MAGIC           source.claimed_amount, source.approved_amount, source.settlement_reason, 
+# MAGIC           source.settlement_date, source.auto_settled)
+
+# METADATA ********************
+
+# META {
+# META   "language": "sparksql",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+logger.info("claim_settlements merge completed")
+print("✅ Claim settlements processed")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Execution Summary
+
+# CELL ********************
+
+# Log execution metrics
+end_time = datetime.utcnow()
+duration_sec = round((end_time - start_time).total_seconds(), 2)
+
+cpu = psutil.cpu_percent()
+mem = psutil.virtual_memory()
+memory_usage_percent = (mem.used / mem.total) * 100
+
+logger.info(
+    f"Resource usage - CPU: {cpu}% | Memory: {memory_usage_percent:.2f}%",
+    extra={
+        "custom_dimensions": {
+            "cpu_usage": float(cpu),
+            "memory_usage": memory_usage_percent,
+            "memory_mb": float(mem.used) / 1024**2,
+            "total_memory_mb": float(mem.total) / 1024**2,
+            "username": str(getpass.getuser()),
+            "host": str(socket.gethostname()),
+            "notebook_name": "publish_incremental_load",
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "duration_seconds": str(duration_sec)
+        }
+    }
+)
+
+logger.info(f"publish_incremental_load completed in {duration_sec} seconds")
+
+print("\n" + "="*60)
+print("EXECUTION SUMMARY")
+print("="*60)
+print(f"Duration: {duration_sec} seconds")
+print(f"CPU Usage: {cpu}%")
+print(f"Memory Usage: {memory_usage_percent:.2f}%")
+print(f"Start Time: {start_time}")
+print(f"End Time: {end_time}")
+print("="*60)
+print("\n✅ Incremental load completed successfully!")
+print("Next: Run notebook 04_Feature_Engineering or 05_Fraud_Detection_Model")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+

@@ -1,0 +1,118 @@
+table dataqualityexecutions
+	lineageTag: 064ea50f-4aba-4f02-b920-9227735e0b5e
+	sourceLineageTag: [dataquality].[dataqualityexecutions]
+
+	column ExecutionID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 2c7bc6c5-789b-401e-9bd9-b1fbebc2d9a0
+		sourceLineageTag: ExecutionID
+		summarizeBy: none
+		sourceColumn: ExecutionID
+
+		annotation SummarizationSetBy = Automatic
+
+	column MasterID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 25659793-14bc-479c-b2da-34b439aedb0b
+		sourceLineageTag: MasterID
+		summarizeBy: none
+		sourceColumn: MasterID
+
+		annotation SummarizationSetBy = Automatic
+
+	column TestCaseID
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: bf4ae8b7-9e31-4f5f-b593-5960cd670775
+		sourceLineageTag: TestCaseID
+		summarizeBy: none
+		sourceColumn: TestCaseID
+
+		annotation SummarizationSetBy = Automatic
+
+	column SourceTable
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: b59e2e63-5c14-4164-a1d0-fdbfae98f4ca
+		sourceLineageTag: SourceTable
+		summarizeBy: none
+		sourceColumn: SourceTable
+
+		annotation SummarizationSetBy = Automatic
+
+	column ScannedRowCount
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 7630ce36-c995-44f4-9ac6-1d01cf5e1772
+		sourceLineageTag: ScannedRowCount
+		summarizeBy: sum
+		sourceColumn: ScannedRowCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column IssueRowCount
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: e3c52f68-57f5-426c-8c25-e1be13b9594f
+		sourceLineageTag: IssueRowCount
+		summarizeBy: sum
+		sourceColumn: IssueRowCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column PassRate
+		dataType: double
+		sourceProviderType: float
+		lineageTag: c86a9366-32b0-4d57-aac3-7e080a242dc5
+		sourceLineageTag: PassRate
+		summarizeBy: sum
+		sourceColumn: PassRate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Status
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 2ce2fde7-c71c-4743-9d6d-9a22ed4ee74a
+		sourceLineageTag: Status
+		summarizeBy: none
+		sourceColumn: Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column ExecutionTime
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: datetime2
+		lineageTag: 9a43ba70-63f4-4739-b7ea-d981a5afad02
+		sourceLineageTag: ExecutionTime
+		summarizeBy: none
+		sourceColumn: ExecutionTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column IssueType
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: e4ad00e2-38d1-49a7-803d-fc33e15d82b2
+		sourceLineageTag: IssueType
+		summarizeBy: none
+		sourceColumn: IssueType
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dataqualityexecutions = entity
+		mode: directLake
+		source
+			entityName: dataqualityexecutions
+			schemaName: dataquality
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

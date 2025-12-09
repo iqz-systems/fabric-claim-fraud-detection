@@ -1,0 +1,258 @@
+table resource_optimization_events
+	lineageTag: 1fffb2c6-31a1-4c5e-b2b4-b5660ef88f1f
+	sourceLineageTag: [dbo].[resource_optimization_events]
+
+	measure 'Cost Saved' = ```
+			
+			VAR optDate = SELECTEDVALUE(resource_optimization_events[Date])
+			VAR meter = SELECTEDVALUE(resource_optimization_events[MeterName])
+			
+			VAR prevDate =
+			    CALCULATE (
+			        MAX (azure_usage_cost[date]),
+			        FILTER (
+			            azure_usage_cost,
+			            azure_usage_cost[date] < optDate &&
+			            azure_usage_cost[MeterName] = meter
+			        )
+			    )
+			
+			VAR prevDayCost =
+			    CALCULATE (
+			        SUM (azure_usage_cost[CostInUSD]),
+			        azure_usage_cost[MeterName] = meter,
+			        azure_usage_cost[date] = prevDate
+			    )
+			
+			VAR postOptimizationCost =
+			    CALCULATE (
+			        SUM (azure_usage_cost[CostInUSD]),
+			        azure_usage_cost[MeterName] = meter &&
+			        azure_usage_cost[date] >= optDate
+			    )
+			
+			VAR daysAfter =
+			    CALCULATE (
+			        COUNTROWS (azure_usage_cost),
+			        azure_usage_cost[MeterName] = meter &&
+			        azure_usage_cost[date] >= optDate
+			    )
+			
+			VAR expectedCost = prevDayCost * daysAfter
+			
+			RETURN
+			    expectedCost - postOptimizationCost
+			
+			```
+		lineageTag: d1e125d1-6aa8-403c-b30c-03beb1c66dff
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Total Cost Saved' = ```
+			
+			SUMX (
+			    resource_optimization_events,
+			    VAR optDate = resource_optimization_events[Date]
+			    VAR meter = resource_optimization_events[MeterName]
+			
+			    VAR prevDate =
+			        CALCULATE (
+			            MAX (azure_usage_cost[date]),
+			            FILTER (
+			                azure_usage_cost,
+			                azure_usage_cost[date] < optDate &&
+			                azure_usage_cost[MeterName] = meter
+			            )
+			        )
+			
+			    VAR prevDayCost =
+			        CALCULATE (
+			            SUM (azure_usage_cost[CostInUSD]),
+			            azure_usage_cost[MeterName] = meter &&
+			            azure_usage_cost[date] = prevDate
+			        )
+			
+			    VAR postOptimizationCost =
+			        CALCULATE (
+			            SUM (azure_usage_cost[CostInUSD]),
+			            azure_usage_cost[MeterName] = meter &&
+			            azure_usage_cost[date] >= optDate
+			        )
+			
+			    VAR daysAfter =
+			        CALCULATE (
+			            COUNTROWS (azure_usage_cost),
+			            azure_usage_cost[MeterName] = meter &&
+			            azure_usage_cost[date] >= optDate
+			        )
+			
+			    VAR expectedCost = prevDayCost * daysAfter
+			
+			    RETURN
+			        expectedCost - postOptimizationCost
+			)
+			
+			```
+		lineageTag: 4dfc7a87-3813-4f4a-b695-f70e2b62ced6
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column OptimizationID
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 851445b4-fa9d-46a2-b5f2-6a9566786958
+		sourceLineageTag: OptimizationID
+		summarizeBy: count
+		sourceColumn: OptimizationID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Date
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: date
+		lineageTag: bff375af-9e1d-4e62-afaf-0742cd154e5b
+		sourceLineageTag: Date
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column ActionDescription
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 1c962ed5-cb9b-4531-aa95-bd67e1ec106e
+		sourceLineageTag: ActionDescription
+		summarizeBy: none
+		sourceColumn: ActionDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column Owner
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: b6545e27-e132-4ee1-b0aa-d1857a350d0f
+		sourceLineageTag: Owner
+		summarizeBy: none
+		sourceColumn: Owner
+
+		annotation SummarizationSetBy = Automatic
+
+	column ResourceName
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 062c080a-dc70-4959-843d-3163d24e67b0
+		sourceLineageTag: ResourceName
+		summarizeBy: none
+		sourceColumn: ResourceName
+
+		annotation SummarizationSetBy = Automatic
+
+	column ResourceType
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 993af95e-f3c6-44a9-8a51-01486596aa68
+		sourceLineageTag: ResourceType
+		summarizeBy: none
+		sourceColumn: ResourceType
+
+		annotation SummarizationSetBy = Automatic
+
+	column Workspace
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 5ebf2981-c352-4c60-b886-8354e527816b
+		sourceLineageTag: Workspace
+		summarizeBy: none
+		sourceColumn: Workspace
+
+		annotation SummarizationSetBy = Automatic
+
+	column ExpectedImpact
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 9f05b50b-a957-4c83-b5d7-7ca9c8db636b
+		sourceLineageTag: ExpectedImpact
+		summarizeBy: none
+		sourceColumn: ExpectedImpact
+
+		annotation SummarizationSetBy = Automatic
+
+	column ExpectedImpactCU
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 719aa919-a27c-439b-9a70-e5a0068a9d39
+		sourceLineageTag: ExpectedImpactCU
+		summarizeBy: sum
+		sourceColumn: ExpectedImpactCU
+
+		annotation SummarizationSetBy = Automatic
+
+	column ExpectedImpactCost
+		dataType: double
+		sourceProviderType: float
+		lineageTag: db594009-86b3-409e-9cb7-0235d8e58ff2
+		sourceLineageTag: ExpectedImpactCost
+		summarizeBy: sum
+		sourceColumn: ExpectedImpactCost
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Status
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: f72f1ad5-de86-44f1-824e-32b5c541c387
+		sourceLineageTag: Status
+		summarizeBy: none
+		sourceColumn: Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column ImpactMeasuredOn
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: date
+		lineageTag: 957b3c8c-cae6-4682-8495-fcda3d351b52
+		sourceLineageTag: ImpactMeasuredOn
+		summarizeBy: none
+		sourceColumn: ImpactMeasuredOn
+
+		annotation SummarizationSetBy = Automatic
+
+	column Notes
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 3e17a184-b27a-42f6-9812-57a94adb1a13
+		sourceLineageTag: Notes
+		summarizeBy: none
+		sourceColumn: Notes
+
+		annotation SummarizationSetBy = Automatic
+
+	column MeterName
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: a71cd9df-d5c7-43b6-8524-65524779b82b
+		sourceLineageTag: MeterName
+		summarizeBy: none
+		sourceColumn: MeterName
+
+		annotation SummarizationSetBy = Automatic
+
+	partition resource_optimization_events = entity
+		mode: directLake
+		source
+			entityName: resource_optimization_events
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

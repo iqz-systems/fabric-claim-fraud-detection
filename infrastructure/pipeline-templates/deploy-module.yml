@@ -1,0 +1,34 @@
+# Reusable template for deploying individual modules
+# Usage: Include this template in your pipeline stages
+
+parameters:
+  - name: moduleName
+    type: string
+  - name: resourceGroupName
+    type: string
+  - name: environment
+    type: string
+  - name: location
+    type: string
+    default: 'eastus'
+  - name: additionalParameters
+    type: object
+    default: {}
+
+steps:
+  - task: AzurePowerShell@5
+    displayName: "Deploy ${{ parameters.moduleName }} Module"
+    inputs:
+      azureSubscription: '<your-azure-service-connection>'
+      ScriptType: 'FilePath'
+      ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-ArmTemplate.ps1'
+      ScriptArguments: >
+        -ResourceGroupName "${{ parameters.resourceGroupName }}"
+        -TemplateFile "$(System.DefaultWorkingDirectory)/infrastructure/arm-templates/modules/${{ parameters.moduleName }}/azuredeploy.json"
+        -ParametersFile "$(System.DefaultWorkingDirectory)/infrastructure/arm-templates/environments/${{ parameters.environment }}/azuredeploy.parameters.json"
+        -Environment "${{ parameters.environment }}"
+      azurePowerShellVersion: 'LatestVersion'
+      pwsh: true
+    continueOnError: false
+
+

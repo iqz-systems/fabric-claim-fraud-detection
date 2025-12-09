@@ -1,0 +1,79 @@
+# Incremental deployment template that only deploys changed modules
+# Detects changes and handles dependencies automatically
+
+parameters:
+  - name: resourceGroupName
+    type: string
+  - name: environment
+    type: string
+  - name: location
+    type: string
+    default: 'eastus'
+  - name: changedModules
+    type: object
+    default: []
+
+steps:
+  - task: PowerShell@2
+    displayName: 'Determine Deployment Order'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Define module dependencies
+        $moduleDependencies = @{
+          'monitoring' = @()
+          'storage' = @('monitoring')
+          'event-hub' = @('monitoring')
+          'ai-services' = @('monitoring')
+          'integration' = @('monitoring')
+          'fabric-capacity' = @()
+        }
+        
+        # Get changed modules or deploy all if empty
+        $modulesToDeploy = @('monitoring', 'storage', 'event-hub', 'ai-services', 'integration')
+        if (${{ parameters.changedModules }}.Count -gt 0) {
+          $modulesToDeploy = ${{ parameters.changedModules }}
+        }
+        
+        # Resolve dependencies
+        $deploymentOrder = @()
+        $deployed = @{}
+        
+        function Resolve-Dependencies {
+          param($module)
+          if ($deployed[$module]) { return }
+          
+          $deps = $moduleDependencies[$module]
+          foreach ($dep in $deps) {
+            if ($modulesToDeploy -contains $dep -or $deploymentOrder -contains $dep) {
+              Resolve-Dependencies $dep
+            }
+          }
+          
+          if ($modulesToDeploy -contains $module) {
+            $deploymentOrder += $module
+            $deployed[$module] = $true
+          }
+        }
+        
+        foreach ($module in $modulesToDeploy) {
+          Resolve-Dependencies $module
+        }
+        
+        Write-Host "Deployment Order: $($deploymentOrder -join ' -> ')"
+        Write-Host "##vso[task.setvariable variable=deploymentOrder]$($deploymentOrder -join ',')"
+  
+  - task: AzurePowerShell@5
+    displayName: 'Deploy Modules in Order'
+    inputs:
+      azureSubscription: '<your-azure-service-connection>'
+      ScriptType: 'FilePath'
+      ScriptPath: '$(System.DefaultWorkingDirectory)/infrastructure/scripts/Deploy-AllModules.ps1'
+      ScriptArguments: >
+        -ResourceGroupName "${{ parameters.resourceGroupName }}"
+        -Environment "${{ parameters.environment }}"
+        -Location "${{ parameters.location }}"
+      azurePowerShellVersion: 'LatestVersion'
+      pwsh: true
+
+

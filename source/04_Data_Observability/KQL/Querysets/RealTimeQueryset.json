@@ -1,0 +1,22 @@
+{
+  "queryset": {
+    "version": "1.0.0",
+    "dataSources": [
+      {
+        "id": "6b7e6e09-c569-4cfe-aecf-9859d03a77fa",
+        "clusterUri": "https://trd-361tu3vjzdeughdhwe.z6.kusto.fabric.microsoft.com",
+        "type": "Fabric",
+        "databaseItemId": "690e2d09-6296-4643-982c-50e3f294447e",
+        "databaseItemName": "Monitoring Eventhouse"
+      }
+    ],
+    "tabs": [
+      {
+        "id": "9cc49edc-6a22-42a2-9332-fc3f6f9fd364",
+        "content": "EventhouseCommandLogs\n| project Timestamp, OperationName, ItemId, ItemKind, ItemName, WorkspaceId, WorkspaceName, CapacityId, CorrelationId, OperationId, Identity, CustomerTenantId, DurationMs, Status, Level, Region, WorkspaceMonitoringTableName, OperationStartTime, OperationEndTime, DatabaseId, DatabaseName, CommandText, SourceApplication, CacheHotHitsBytes, CacheHotMissesBytes, CacheColdHitsBytes, CacheColdMissesBytes, ScannedRowsCount, ScannedExtentsCount, ExtentsMaxScannedTime, ExtentsMinScannedTime, TotalRowsCount, TotalExtentsCount, MemoryPeakBytes, CpuTimeMs, ComponentFault, FailureReason, EventhouseCommandTypeEventhouseMetrics\n| \n\n\n\n\n",
+        "title": "Tab",
+        "dataSourceId": "6b7e6e09-c569-4cfe-aecf-9859d03a77fa"
+      }
+    ]
+  }
+}
