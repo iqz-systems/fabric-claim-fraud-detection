@@ -23,7 +23,6 @@ This is a copy-paste friendly template to spin up an end-to-end Fabric solution 
 9. `04_Data_Observability/09_Data_Freshness_Monitoring.py`
 10. `04_Data_Observability/10_Pipeline_Start_Tracking.py`
 11. `04_Data_Observability/11_Pipeline_End_Tracking.py`
-12. `05_FinOps/12_FinOps_Data_Load.py` (optional, independent)
 
 ## Notebook Details (What each does)
 ### Batch Processing
@@ -50,33 +49,11 @@ This is a copy-paste friendly template to spin up an end-to-end Fabric solution 
 
 ## Quick Start
 1) Create Fabric workspace and lakehouses (`raw`, `curate`, `publish`; plus optional FinOps lakehouse).  
-2) Copy env template: `config/env.template.txt` → `.env`; fill your IDs/keys (or set in Fabric environment variables).  
-3) In Fabric, create a new notebook → **View code** → paste a `.py` file → attach lakehouse(s) → run.  
-4) Follow the order above for core fraud flow; run FinOps separately if needed.  
-5) Open reports/semantic models in Power BI as references for dashboards.
+2) In Fabric, create a new notebook → **View code** → paste a `.py` file → attach lakehouse(s) → run.  
+3) Follow the order above for core fraud flow; run FinOps separately if needed.  
+4) Open reports/semantic models in Power BI as references for dashboards.
 
-## Configuration & Secrets
-- Update placeholders in notebooks and `config/config.py` (storage keys, Event Hub, AI endpoints, App Insights, workspace/lakehouse IDs, model URIs).  
-- Do not commit real secrets; prefer Fabric environment variables or Key Vault.
-
-## Reports & Models
-- `Batch` and `Observability` semantic models + Power BI reports.  
-- `FinOps` semantic model + Power BI report.  
-Use them as templates; reconnect to your lakehouse tables in Power BI.
-
-## Observability
-- Use notebooks 09–11 for freshness and pipeline logging.  
-- `data_observability_semantic_model.SemanticModel/` + `data_observability_report.Report/` for dashboards.  
-- `data_quality_pipeline.DataPipeline/` for automated checks.  
-- KQL assets: `04_Data_Observability/KQL/Querysets/RealTimeQueryset.json` and dashboards under `04_Data_Observability/KQL/Dashboards/` (legacy in `.../Legacy/`).
-- KQL assets: `Data Observability/KQL/Querysets/RealTimeQueryset.json` and dashboards under `Data Observability/KQL/Dashboards/` (legacy in `.../Legacy/`).
-
-## FinOps
-- `12_FinOps_Data_Load.py` loads Azure usage, budgets, optimization events.  
-- Semantic model + report for cost insights; runs independently of fraud flow.
 
 ## Notes
 - All IDs/connection strings are sanitized placeholders—replace with your own.  
 - Notebooks are idempotent where possible; incremental logic uses watermarks.  
-- Feel free to trim further; current folders contain only essentials after cleanup.
-This is an auto-created file for source/fabric
